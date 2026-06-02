@@ -1,5 +1,4 @@
 import { useGetStudentDashboardQuery } from '../../store/api/dashboardApi';
-import useAuth from '../../hooks/useAuth';
 import StatCard from '../../components/common/StatCard';
 import Badge from '../../components/common/Badge';
 
@@ -9,7 +8,6 @@ const EVENT_BADGE = {
 
 export default function StudentDashboard() {
   const { data, isLoading, error } = useGetStudentDashboardQuery();
-  const { user } = useAuth();
   const d = data?.data;
 
   if (isLoading) {
@@ -160,7 +158,7 @@ export default function StudentDashboard() {
               {d.recentNotifications.map((n) => (
                 <div key={n._id} className="p-3 rounded-xl hover:bg-surface transition-colors border-l-[3px] border-l-primary">
                   <p className="text-sm font-medium text-text-pri">{n.title}</p>
-                  <p className="text-xs text-text-sec mt-1">{n.body}</p>
+                  <p className="text-xs text-text-sec mt-1">{n.message}</p>
                   <p className="text-[11px] text-text-muted mt-1">
                     {new Date(n.createdAt).toLocaleString()}
                   </p>
