@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useGetStudentsQuery } from '../../store/api/studentApi';
 import { useSubmitAttendanceMutation } from '../../store/api/attendanceApi';
@@ -15,7 +15,7 @@ export default function MarkAttendance() {
   const [selectedClass, setSelectedClass] = useState(searchParams.get('class') || '');
   const [selectedSection, setSelectedSection] = useState(searchParams.get('section') || '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [attendance, setAttendance] = useState({});
+  const [overrides, setOverrides] = useState({});
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -27,30 +27,38 @@ export default function MarkAttendance() {
 
   const students = studentsData?.data?.students || [];
 
-  // Init attendance to "present" for all students
-  useEffect(() => {
-    if (students.length > 0) {
-      const initial = {};
-      students.forEach((s) => {
-        initial[s.studentId] = attendance[s.studentId] || 'present';
-      });
-      setAttendance(initial);
-    }
-  }, [students]);
+  // Derive the effective status for each student: an explicit override if the
+  // teacher has changed it, otherwise the default "present". This avoids
+  // syncing state inside an effect (which triggers cascading renders).
+  const statusFor = (studentId) => overrides[studentId] || 'present';
+
+  const resetSelection = () => {
+    setOverrides({});
+    setSuccess('');
+    setError('');
+  };
 
   const toggleStatus = (studentId) => {
     const order = ['present', 'absent', 'late'];
-    const current = attendance[studentId] || 'present';
+    const current = statusFor(studentId);
     const nextIndex = (order.indexOf(current) + 1) % order.length;
-    setAttendance({ ...attendance, [studentId]: order[nextIndex] });
+    setOverrides((prev) => ({ ...prev, [studentId]: order[nextIndex] }));
   };
+
+  const counts = students.reduce(
+    (acc, s) => {
+      acc[statusFor(s.studentId)] += 1;
+      return acc;
+    },
+    { present: 0, absent: 0, late: 0 }
+  );
 
   const handleSubmit = async () => {
     setError('');
     setSuccess('');
-    const records = Object.entries(attendance).map(([studentId, status]) => ({
-      studentId,
-      status,
+    const records = students.map((s) => ({
+      studentId: s.studentId,
+      status: statusFor(s.studentId),
     }));
 
     try {
@@ -87,7 +95,7 @@ export default function MarkAttendance() {
           <label className="text-[13px] font-medium text-text-pri font-sans">Class</label>
           <select
             value={selectedClass}
-            onChange={(e) => { setSelectedClass(e.target.value); setAttendance({}); }}
+            onChange={(e) => { setSelectedClass(e.target.value); resetSelection(); }}
             className="rounded-[10px] border-[1.5px] border-border px-3.5 py-2.5 text-sm font-sans bg-white focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/10 w-32"
           >
             <option value="">Select</option>
@@ -100,7 +108,7 @@ export default function MarkAttendance() {
           <label className="text-[13px] font-medium text-text-pri font-sans">Section</label>
           <select
             value={selectedSection}
-            onChange={(e) => { setSelectedSection(e.target.value); setAttendance({}); }}
+            onChange={(e) => { setSelectedSection(e.target.value); resetSelection(); }}
             className="rounded-[10px] border-[1.5px] border-border px-3.5 py-2.5 text-sm font-sans bg-white focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/10 w-32"
           >
             <option value="">Select</option>
@@ -163,9 +171,9 @@ export default function MarkAttendance() {
                             onClick={() => toggleStatus(s.studentId)}
                             className="cursor-pointer"
                           >
-                            <Badge variant={statusBadge[attendance[s.studentId] || 'present']}>
-                              {(attendance[s.studentId] || 'present').charAt(0).toUpperCase() +
-                                (attendance[s.studentId] || 'present').slice(1)}
+                            <Badge variant={statusBadge[statusFor(s.studentId)]}>
+                              {statusFor(s.studentId).charAt(0).toUpperCase() +
+                                statusFor(s.studentId).slice(1)}
                             </Badge>
                           </button>
                         </td>
@@ -179,13 +187,13 @@ export default function MarkAttendance() {
               <div className="px-6 py-4 border-t border-border bg-surface flex items-center justify-between flex-wrap gap-4">
                 <div className="flex gap-4 text-sm font-sans">
                   <span className="text-success font-medium">
-                    Present: {Object.values(attendance).filter((s) => s === 'present').length}
+                    Present: {counts.present}
                   </span>
                   <span className="text-danger font-medium">
-                    Absent: {Object.values(attendance).filter((s) => s === 'absent').length}
+                    Absent: {counts.absent}
                   </span>
                   <span className="text-warning font-medium">
-                    Late: {Object.values(attendance).filter((s) => s === 'late').length}
+                    Late: {counts.late}
                   </span>
                 </div>
                 <Button onClick={handleSubmit} loading={submitting}>

@@ -1,6 +1,5 @@
 import useAuth from '../../hooks/useAuth';
 import { useGetStudentAttendanceQuery } from '../../store/api/attendanceApi';
-import Badge from '../../components/common/Badge';
 import StatCard from '../../components/common/StatCard';
 
 export default function MyAttendance() {
